@@ -15,11 +15,14 @@ namespace NDifference.Projects
 			this.Version = "1.0";
 			this.Settings = new PersistableProjectSettings();
 
-			this.SourceAssemblies = new List<string>();
-			this.TargetAssemblies = new List<string>();
-		}
+            this.SourceAssemblies = new List<string>();
+            this.SourceFilter = "*.dll";
 
-		[XmlAttribute("ID")]
+            this.TargetAssemblies = new List<string>();
+            this.TargetFilter = "*.dll";
+        }
+
+        [XmlAttribute("ID")]
 		public string Identifier { get; set; }
 
 		[XmlAttribute("Version")]
@@ -31,11 +34,19 @@ namespace NDifference.Projects
 
 		public string TargetName { get; set; }
 
-		[XmlArrayItem("Include")]
+        public string SourceFolder { get; set; }
+
+        public string SourceFilter { get; set; }
+
+        [XmlArrayItem("Include")]
 		[SuppressMessage("Microsoft.Design", "CA1002:DoNotExposeGenericLists")]
 		public List<string> SourceAssemblies { get; set; }
 
-		[XmlArrayItem("Include")]
+        public string TargetFolder { get; set; }
+
+        public string TargetFilter { get; set; }
+
+        [XmlArrayItem("Include")]
 		[SuppressMessage("Microsoft.Design", "CA1002:DoNotExposeGenericLists")]
 		public List<string> TargetAssemblies { get; set; }
 

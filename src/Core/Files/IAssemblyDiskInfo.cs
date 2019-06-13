@@ -57,5 +57,14 @@ namespace NDifference
 		{
 			return assemblies.FirstOrDefault(x => x.Name.Equals(instance, StringComparison.CurrentCultureIgnoreCase));
 		}
+
+        public static bool AllAssembliesInSameFolder(this IEnumerable<IAssemblyDiskInfo> assemblies)
+        {
+            if (!assemblies.Any())
+                return false;
+
+            string folder = System.IO.Path.GetDirectoryName(assemblies.First().Path);
+            return assemblies.All(x => System.IO.Path.GetDirectoryName(x.Path) == folder);
+        }
 	}
 }

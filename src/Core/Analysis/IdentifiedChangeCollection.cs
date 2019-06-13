@@ -52,7 +52,7 @@ namespace NDifference.Analysis
 
 		public List<IdentifiedChange> Changes { get; private set; }
 
-		public void Add(Category cat)
+		private void Add(Category cat)
 		{
 			Debug.Assert(this.Categories != null, "Categories collection is null");
 			Debug.Assert(cat != null, "Category is null");
@@ -70,29 +70,40 @@ namespace NDifference.Analysis
 			// now look for category and flag up missing.
 			Category c = change.Category;
 
-			if (this.Categories.Contains(c))
-			{
-				int columnsInTable = c.Columns;
-				int columnsInData = 1;
+            if (c != null)
+            {
+                if (this.Categories.Contains(c))
+                {
+                    int columnsInTable = c.Columns;
+                    int columnsInData = 1;
 
-				if (change.Descriptor != null)
-				{
-					IDescriptor implementsIDescriptor = change.Descriptor as IDescriptor;
+                    if (change.Descriptor != null)
+                    {
+                        IDescriptor implementsIDescriptor = change.Descriptor as IDescriptor;
 
-					if (implementsIDescriptor != null)
-					{
-						columnsInData = implementsIDescriptor.Columns;
-					}
-				}
+                        if (implementsIDescriptor != null)
+                        {
+                            columnsInData = implementsIDescriptor.Columns;
+                        }
+                    }
 
-				if (columnsInData != columnsInTable)
-					throw new Exception("Column mismatch " + c.Name + " " + change.Description);
-			}
+                    if (columnsInData != columnsInTable)
+                        throw new Exception("Column mismatch " + c.Name);
+                }
 
-			this.Changes.Add(change);
+                if (!this.Categories.Contains(c))
+                    this.Add(c);
+            }
+
+            this.Changes.Add(change);
 		}
 
-		public List<IdentifiedChange> ChangesInCategory(int priority)
+        public int CountChangesWithSeverity(Severity s)
+        {
+            return this.Changes.Count(x => x.Category.Severity >= s);
+        }
+
+        public List<IdentifiedChange> ChangesInCategory(int priority) // and for a level ?
 		{
 			Debug.Assert(this.Categories != null, "Categories collection is null");
 			Debug.Assert(this.Changes != null, "Changes collection is null");
@@ -100,7 +111,15 @@ namespace NDifference.Analysis
 			return this.Changes.Where(x => x.Priority == priority).ToList();
 		}
 
-		public List<IdentifiedChange> UnCategorisedChanges()
+        public List<IdentifiedChange> ChangesInCategory(string categoryName) // and for a level ???
+        {
+            Debug.Assert(this.Categories != null, "Categories collection is null");
+            Debug.Assert(this.Changes != null, "Changes collection is null");
+
+            return this.Changes.Where(x => x.Category.Name == categoryName).ToList();
+        }
+
+        public List<IdentifiedChange> UnCategorisedChanges()
 		{
 			Debug.Assert(this.Categories != null, "Categories collection is null");
 			Debug.Assert(this.Changes != null, "Changes collection is null");
@@ -116,6 +135,30 @@ namespace NDifference.Analysis
 
 			return list;
 		}
+
+        [Obsolete("No longer used")]
+        public void SwitchCategory(Category from, Category to)
+        {
+            if (this.Categories.Contains(from))
+                this.Categories.Add(to);
+
+            foreach(var change in this.Changes)
+            {
+                if (change.Category.Name == from.Name && change.Category.Identifier == from.Identifier)
+                {
+                    change.Category = to;
+                }
+            }
+
+            if (this.Categories.Contains(from))
+                this.Categories.Remove(from);
+        }
+
+        [Obsolete("No longer used")]
+        public void PurgeCategory(string categoryName)
+        {
+            this.Changes.RemoveAll(x => x.Category.Name == categoryName);
+        }
 
 		public void CopyMetaFrom(IdentifiedChangeCollection other)
 		{

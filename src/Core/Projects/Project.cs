@@ -2,6 +2,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 
 namespace NDifference.Projects
 {
@@ -77,27 +78,60 @@ namespace NDifference.Projects
 				persistableFormat.SourceName = this.Product.ComparedIncrements.First.Name;
 				persistableFormat.TargetName = this.Product.ComparedIncrements.Second.Name;
 
-				foreach (var assembly in this.Product.ComparedIncrements.First.Assemblies)
-				{
-					string include = writeAbsolutePaths ? assembly.Path : baseFolder.MakeRelativePath(assembly.Path);
-					persistableFormat.SourceAssemblies.Add(include);
-				}
+                if (this.Product.ComparedIncrements.First.Assemblies.AllAssembliesInSameFolder())
+                {
+                    persistableFormat.SourceFolder = System.IO.Path.GetDirectoryName(this.Product.ComparedIncrements.First.Assemblies[0].Path);
 
-				foreach (var assembly in this.Product.ComparedIncrements.Second.Assemblies)
-				{
-					string include = writeAbsolutePaths ? assembly.Path : baseFolder.MakeRelativePath(assembly.Path);
-					persistableFormat.TargetAssemblies.Add(include);
-				}
-			}
+                    foreach (var assembly in this.Product.ComparedIncrements.First.Assemblies)
+                    {
+                        string include = assembly.Path.MakeRelativeToFolder(persistableFormat.SourceFolder);
+                        persistableFormat.SourceAssemblies.Add(include);
+                    }
+                }
+                else
+                {
+                    foreach (var assembly in this.Product.ComparedIncrements.First.Assemblies)
+                    {
+                        string include = assembly.Path;
+
+                        if (!writeAbsolutePaths && include.StartsWith(baseFolder))
+                            include = include.MakeRelativeToFolder(baseFolder);
+
+                        persistableFormat.SourceAssemblies.Add(include);
+                    }
+                }
+
+                if (this.Product.ComparedIncrements.Second.Assemblies.AllAssembliesInSameFolder())
+                {
+                    persistableFormat.TargetFolder = System.IO.Path.GetDirectoryName(this.Product.ComparedIncrements.Second.Assemblies[0].Path);
+
+                    foreach (var assembly in this.Product.ComparedIncrements.Second.Assemblies)
+                    {
+                        string include = assembly.Path.MakeRelativeToFolder(persistableFormat.TargetFolder);
+                        persistableFormat.TargetAssemblies.Add(include);
+                    }
+                }
+                else
+                {
+                    foreach (var assembly in this.Product.ComparedIncrements.Second.Assemblies)
+                    {
+                        string include = assembly.Path;
+
+                        if (!writeAbsolutePaths && include.StartsWith(baseFolder))
+                            include = include.MakeRelativeToFolder(baseFolder);
+
+                        persistableFormat.TargetAssemblies.Add(include);
+                    }
+                }
+            }
 
 			persistableFormat.Settings = this.Settings.ToPersistableFormat();
 
-			if (!String.IsNullOrEmpty(persistableFormat.Settings.OutputFolder))
+			if (!String.IsNullOrEmpty(this.Settings.OutputFolder) && Path.IsPathRooted(this.Settings.OutputFolder))
 			{
-				if (Path.IsPathRooted(persistableFormat.Settings.OutputFolder))
-				{
-					persistableFormat.Settings.OutputFolder = writeAbsolutePaths ? persistableFormat.Settings.OutputFolder : baseFolder.MakeRelativePath(persistableFormat.Settings.OutputFolder);
-				}
+				persistableFormat.Settings.OutputFolder = writeAbsolutePaths 
+                    ? this.Settings.OutputFolder 
+                    : this.Settings.OutputFolder.MakeFoldersRelative(baseFolder);
 			}
 
 			return persistableFormat;
@@ -127,48 +161,76 @@ namespace NDifference.Projects
 				firstVersion.Name = persistableFormat.SourceName;
 			}
 
-			foreach (var file in persistableFormat.SourceAssemblies)
-			{
-				if (!string.IsNullOrEmpty(file))
-				{
-					string fullPath = file;
+            if (persistableFormat.SourceAssemblies.Any())
+            {
+                foreach (var file in persistableFormat.SourceAssemblies)
+                {
+                    if (!string.IsNullOrEmpty(file))
+                    {
+                        string fullPath = file;
 
-					if (!string.IsNullOrEmpty(baseFolder))
-					{
-						fullPath = baseFolder.MakeAbsolutePath(file);
-					}
+                        if (string.IsNullOrEmpty(persistableFormat.SourceFolder))
+                        {
+                            if (!string.IsNullOrEmpty(baseFolder))
+                            {
+                                fullPath = baseFolder.MakeAbsolutePath(file);
+                            }
+                        }
+                        else
+                        {
+                            fullPath = persistableFormat.SourceFolder.MakeAbsolutePath(file);
+                        }
 
-					firstVersion.Add(new AssemblyDiskInfo(fullPath));
-				}
-			}
+                        firstVersion.Add(new AssemblyDiskInfo(fullPath));
+                    }
+                }
+            }
+            else
+            {
+                InferFileListFrom(persistableFormat.SourceFolder, persistableFormat.SourceFilter, firstVersion);
+            }
 
-			project.Product.Add(firstVersion);
+            project.Product.Add(firstVersion);
 
-			var secondVersion = new ProductIncrement();
+            var secondVersion = new ProductIncrement();
 
-			if (!String.IsNullOrEmpty(persistableFormat.TargetName))
-			{
-				secondVersion.Name = persistableFormat.TargetName;
-			}
+            if (!String.IsNullOrEmpty(persistableFormat.TargetName))
+            {
+                secondVersion.Name = persistableFormat.TargetName;
+            }
 
-			foreach (var file in persistableFormat.TargetAssemblies)
-			{
-				if (!string.IsNullOrEmpty(file))
-				{
-					string fullPath = file;
+            if (persistableFormat.TargetAssemblies.Any())
+            {
+                foreach (var file in persistableFormat.TargetAssemblies)
+                {
+                    if (!string.IsNullOrEmpty(file))
+                    {
+                        string fullPath = file;
 
-					if (!string.IsNullOrEmpty(baseFolder))
-					{
-						fullPath = baseFolder.MakeAbsolutePath(file);
-					}
+                        if (string.IsNullOrEmpty(persistableFormat.TargetFolder))
+                        {
+                            if (!string.IsNullOrEmpty(baseFolder))
+                            {
+                                fullPath = baseFolder.MakeAbsolutePath(file);
+                            }
+                        }
+                        else
+                        {
+                            fullPath = persistableFormat.TargetFolder.MakeAbsolutePath(file);
+                        }
 
-					secondVersion.Add(new AssemblyDiskInfo(fullPath));
-				}
-			}
+                        secondVersion.Add(new AssemblyDiskInfo(fullPath));
+                    }
+                }
+            }
+            else
+            {
+                InferFileListFrom(persistableFormat.TargetFolder, persistableFormat.TargetFilter, secondVersion);
+            }
 
-			project.Product.Add(secondVersion);
+            project.Product.Add(secondVersion);
 
-			project.Settings = ProjectSettings.FromPersistableFormat(persistableFormat.Settings);
+            project.Settings = ProjectSettings.FromPersistableFormat(persistableFormat.Settings);
 
 			if (project.Settings.FromIndex >= 0)
 			{
@@ -180,18 +242,33 @@ namespace NDifference.Projects
 				project.Product.ToIncrement = project.Settings.ToIndex;
 			}
 
-			if (!String.IsNullOrEmpty(project.Settings.OutputFolder))
-			{
-				if (!Path.IsPathRooted(project.Settings.OutputFolder))
-				{
-					project.Settings.OutputFolder = baseFolder.MakeAbsolutePath(project.Settings.OutputFolder);
-				}
-			}
+            if (String.IsNullOrEmpty(project.Settings.OutputFolder))
+            {
+                project.Settings.OutputFolder = baseFolder;
+            }
+            else
+            {
+                if (!Path.IsPathRooted(project.Settings.OutputFolder))
+			    {
+                    project.Settings.OutputFolder = baseFolder.MakeAbsolutePath(project.Settings.OutputFolder);
+                }
+            }
 
 			return project;
 		}
 
-		public void CopyMetaFrom(Project other)
+        private static void InferFileListFrom(string folder, string filter, ProductIncrement increment)
+        {
+            if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder))
+            {
+                foreach (string fullPath in Directory.EnumerateFiles(folder, filter))
+                {
+                    increment.Add(new AssemblyDiskInfo(fullPath));
+                }
+            }
+        }
+
+        public void CopyMetaFrom(Project other)
 		{
 			if (other == null)
 				return;

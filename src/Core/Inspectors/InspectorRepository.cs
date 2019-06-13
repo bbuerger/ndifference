@@ -1,4 +1,5 @@
-﻿using NDifference.Plugins;
+﻿using NDifference.Exceptions;
+using NDifference.Plugins;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -18,6 +19,7 @@ namespace NDifference.Inspectors
 
 		private List<ITypeInspector> ti = new List<ITypeInspector>();
 
+        private List<IAnalysisInspector> iai = new List<IAnalysisInspector>();
 
 		public ReadOnlyCollection<IAssemblyCollectionInspector> AssemblyCollectionInspectors 
 		{ 
@@ -51,36 +53,55 @@ namespace NDifference.Inspectors
 			}
 		}
 
+
+        public ReadOnlyCollection<IAnalysisInspector> AnalysisInspectors
+        {
+            get
+            {
+                return new ReadOnlyCollection<IAnalysisInspector>(this.iai);
+            }
+        }
+
 		public void Find(IFileFinder finder)
 		{
-			Task t1 = Task.Run(() => 
-			{
-				this.aci.AddRange(new AssemblyCollectionInspectorPluginDiscoverer(finder).Find());
-				this.aci.ForEach(x => x.Enabled = true);
-			});
+            try
+            {
+                var pluginDiscoverer = new PluginDiscoverer<IInspector>(finder);
+                var plugins = pluginDiscoverer.Find();
 
-			Task t2 = Task.Run(() => 
-			{
-				this.ai.AddRange(new AssemblyInspectorPluginDiscoverer(finder).Find());
-				this.ai.ForEach(x => x.Enabled = true);
-			});
+                this.aci.AddRange(plugins.OfType<IAssemblyCollectionInspector>());
+                this.aci.ForEach(x => x.Enabled = true);
 
-			Task t3 = Task.Run(() => 
-			{
-				this.tci.AddRange(new TypeCollectionInspectorPluginDiscoverer(finder).Find());
-				this.tci.ForEach(x => x.Enabled = true);
-			});
+                this.ai.AddRange(plugins.OfType<IAssemblyInspector>());
+                this.ai.ForEach(x => x.Enabled = true);
 
-			Task t4 = Task.Run(() => 
-			{
-				this.ti.AddRange(new TypeInspectorPluginDiscoverer(finder).Find());
-				this.ti.ForEach(x => x.Enabled = true);
-			});
+                this.tci.AddRange(plugins.OfType<ITypeCollectionInspector>());
+                this.tci.ForEach(x => x.Enabled = true);
 
-			Task.WaitAll(new Task[] { t1, t2, t3, t4 });
-		}
+                this.ti.AddRange(plugins.OfType<ITypeInspector>());
+                this.ti.ForEach(x => x.Enabled = true);
 
-		public void Filter(InspectorFilter filter)
+                this.iai.AddRange(plugins.OfType<IAnalysisInspector>());
+                this.iai.ForEach(x => x.Enabled = true);
+            }
+            catch (AggregateException ae)
+            {
+                StringBuilder message = new StringBuilder();
+
+                foreach (Exception e in ae.InnerExceptions)
+                {
+                    message.AppendLine(e.GetBaseException().Message);
+                }
+
+                throw new PluginLoadException(message.ToString());
+            }
+            catch (Exception ex)
+            {
+                throw new PluginLoadException(ex.GetBaseException().Message);
+            }
+        }
+
+        public void Filter(InspectorFilter filter)
 		{
 			filter.Filter(this.aci);
 			filter.Filter(this.ai);

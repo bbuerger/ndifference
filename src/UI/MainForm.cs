@@ -189,37 +189,43 @@ namespace NDifference.UI
 			
 			var finder = new FileFinder(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), FileFilterConstants.AssemblyFilter);
 
-			InspectorRepository ir = new InspectorRepository();
+            this.tvInspectors.BeginUpdate();
 
-			ir.Find(finder);
+            this.tvInspectors.Nodes.Clear();
 
-			InspectorFilter filter = new InspectorFilter(project.Settings.IgnoreInspectors);
+            try
+            {
+                InspectorRepository ir = new InspectorRepository();
 
-			ir.Filter(filter);
+                ir.Find(finder);
+                InspectorFilter filter = new InspectorFilter(project.Settings.IgnoreInspectors);
 
-			this.tvInspectors.BeginUpdate();
+			    ir.Filter(filter);
 
-			this.tvInspectors.Nodes.Clear();
+			    var aciNode = this.tvInspectors.Nodes.Add("Assembly Collection Inspectors");
 
-			var aciNode = this.tvInspectors.Nodes.Add("Assembly Collection Inspectors");
+			    PopulateNodeChildren(aciNode, ir.AssemblyCollectionInspectors);
 
-			PopulateNodeChildren(aciNode, ir.AssemblyCollectionInspectors);
+			    var aiNode = this.tvInspectors.Nodes.Add("Assembly Inspectors");
+			    PopulateNodeChildren(aiNode, ir.AssemblyInspectors);
 
-			var aiNode = this.tvInspectors.Nodes.Add("Assembly Inspectors");
-			PopulateNodeChildren(aiNode, ir.AssemblyInspectors);
+			    var tciNode = this.tvInspectors.Nodes.Add("Type Collection Inspectors");
+			    PopulateNodeChildren(tciNode, ir.TypeCollectionInspectors);
 
-			var tciNode = this.tvInspectors.Nodes.Add("Type Collection Inspectors");
-			PopulateNodeChildren(tciNode, ir.TypeCollectionInspectors);
+			    var tiNode = this.tvInspectors.Nodes.Add("Type Inspectors");
+			    PopulateNodeChildren(tiNode, ir.TypeInspectors);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.GetBaseException().Message, "Exception", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
 
-			var tiNode = this.tvInspectors.Nodes.Add("Type Inspectors");
-			PopulateNodeChildren(tiNode, ir.TypeInspectors);
-			
-			this.tvInspectors.ExpandAll();
+            this.tvInspectors.ExpandAll();
 
-			this.tvInspectors.EndUpdate();
-		}
+            this.tvInspectors.EndUpdate();
+        }
 
-		private void PopulateNodeChildren(TreeNode node, IEnumerable<IInspector> inspectors)
+        private void PopulateNodeChildren(TreeNode node, IEnumerable<IInspector> inspectors)
 		{
 			foreach (var i in inspectors)
 			{
@@ -569,7 +575,7 @@ namespace NDifference.UI
 
 			try
 			{
-				IProgress<ProgressValue> progressIndicator = new Progress<ProgressValue>(value =>
+				IProgress<Progress> progressIndicator = new Progress<Progress>(value =>
 				{
 					if (!String.IsNullOrEmpty(value.Description))
 					{
@@ -584,7 +590,7 @@ namespace NDifference.UI
 
 				Task t = new Task(() =>
 				{
-					progressIndicator.Report(new ProgressValue { Description = "Starting..." });
+					progressIndicator.Report(new Progress("Starting..."));
 
 					IFileFinder finder = new FileFinder(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), FileFilterConstants.AssemblyFilter);
 
@@ -592,7 +598,7 @@ namespace NDifference.UI
 						finder,
 						new CecilReflectorFactory());
 
-					progressIndicator.Report(new ProgressValue { Description = "Loading Plugins..." });
+					progressIndicator.Report(new Progress("Loading Plugins..."));
 
 					InspectorRepository ir = new InspectorRepository();
 					ir.Find(finder);
@@ -601,16 +607,27 @@ namespace NDifference.UI
 
 					ir.Filter(filter);
 
-					progressIndicator.Report(new ProgressValue { Description = "Starting Analysis..." });
+					progressIndicator.Report(new Progress("Starting Analysis..."));
 
 					var result = analysis.RunAnalysis(this._project, ir, progressIndicator);
+
+                    // now modify results.
+                    foreach(var r in result.TypeLevelChanges)
+                    {
+                        // if no changes .. set assembly level changes...
+                    }
+
+                    foreach(var a in result.AssemblyLevelChanges)
+                    {
+                        // if no assembly level changes set changed assemblies to zero.
+                    }
 
 					IReportingRepository rr = new ReportingRepository();
 					rr.Find(finder);
 
 					IReportingWorkflow reporting = new ReportingWorkflow();
 
-					progressIndicator.Report(new ProgressValue { Description = "Starting Reports..." });
+					progressIndicator.Report(new Progress("Starting Reports..."));
 
 					reporting.RunReports(this._project, rr, result, progressIndicator);
 
@@ -627,9 +644,9 @@ namespace NDifference.UI
 
 				t.Start();
 			}
-			catch(Exception)
+			catch(Exception ex)
 			{
-
+                MessageBox.Show(ex.GetBaseException().Message, "Exception", MessageBoxButtons.OK, MessageBoxIcon.Error);
 			}
 		}
 		
